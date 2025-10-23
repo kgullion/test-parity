@@ -28,7 +28,7 @@ fn bench_parity(metric: &FrameMetric, c: &mut Criterion) {
 
     let mut group = c.benchmark_group(format!("parity/{}+{}", metric.positive, metric.negative));
 
-    group.bench_function(BenchmarkId::new("mul_parity", "orig"), |b| {
+    group.bench_function(BenchmarkId::new("mul_parity", "x"), |b| {
         b.iter(|| {
             for &lhs in &lhs_values {
                 for &rhs in &rhs_values {
@@ -38,7 +38,7 @@ fn bench_parity(metric: &FrameMetric, c: &mut Criterion) {
         });
     });
 
-    group.bench_function(BenchmarkId::new("aap_parity", "aap"), |b| {
+    group.bench_function(BenchmarkId::new("aap_parity", "x"), |b| {
         b.iter(|| {
             for &lhs in &lhs_values {
                 for &rhs in &rhs_values {
@@ -48,11 +48,31 @@ fn bench_parity(metric: &FrameMetric, c: &mut Criterion) {
         });
     });
 
-    group.bench_function(BenchmarkId::new("fun_aap_parity", "fun"), |b| {
+    group.bench_function(BenchmarkId::new("fun_aap_parity", "x"), |b| {
         b.iter(|| {
             for &lhs in &lhs_values {
                 for &rhs in &rhs_values {
                     black_box(metric.fun_aap_parity(lhs, rhs));
+                }
+            }
+        });
+    });
+
+    group.bench_function(BenchmarkId::new("gerenuk_w_metric", "x"), |b| {
+        b.iter(|| {
+            for &lhs in &lhs_values {
+                for &rhs in &rhs_values {
+                    black_box(metric.gerenuk_parity(lhs, rhs) ^ metric.metric_parity(lhs & rhs));
+                }
+            }
+        });
+    });
+
+    group.bench_function(BenchmarkId::new("gerenuk_wo_metric", "x"), |b| {
+        b.iter(|| {
+            for &lhs in &lhs_values {
+                for &rhs in &rhs_values {
+                    black_box(metric.gerenuk_parity(lhs, rhs));
                 }
             }
         });
