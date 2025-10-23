@@ -39,10 +39,14 @@ fn mask(n: u32) -> u32 {
     }
 }
 
-#[inline]
+#[inline(always)]
 #[must_use]
-pub fn parity(n: u32) -> bool {
-    n.count_ones() & 1 != 0
+pub fn parity(mut a: u32) -> bool {
+    a ^= a >> 16;
+    a ^= a >> 8;
+    a ^= a >> 4;
+    a &= 0xF;
+    (0x6996 >> a) & 1 != 0
 }
 
 impl FrameMetric {
@@ -64,17 +68,16 @@ impl FrameMetric {
     #[inline]
     #[must_use]
     pub fn swap_parity(&self, lhs: u32, mut rhs: u32) -> bool {
-        let mut parity = false;
+        let mut p = false;
         while rhs != 0 {
             let rhs_bit = rhs & (!rhs + 1); // least significant bit of rhs
             rhs ^= rhs_bit; // clear least significant bit
             let mask_lower = rhs_bit - 1; // masks for bits below rhs_bit
             let mask_upper = !mask_lower ^ rhs_bit; // masks for bits above
             let lhs_upper = lhs & mask_upper; // bits rhs_bit needs to move past
-            let swaps = lhs_upper.count_ones(); // how many swaps needed
-            parity ^= swaps & 1 != 0; // flip parity if odd number of swaps
+            p ^= parity(lhs_upper); // flip parity if odd number of swaps
         }
-        parity
+        p
     }
     /// Unrolled bitwise version of swap_parity
     #[inline]
@@ -87,18 +90,14 @@ impl FrameMetric {
         b ^= b << 2;
         b ^= b << 1;
         a &= b;
-        a ^= a >> 16;
-        a ^= a >> 8;
-        a ^= a >> 4;
-        a &= 0xF;
-        (0x6996 >> a) & 1 != 0
+        parity(a)
     }
     /// Determine the metric parity of a basis element. Does not account for swaps.
     #[inline]
     #[must_use]
     pub fn metric_parity(&self, basis: u32) -> bool {
         // the metric is determined by the oddness of the number of negative basis elements
-        (basis & self.imagimum).count_ones() & 1 != 0
+        parity(basis & self.imagimum)
     }
     /// Determine the multiplication parity of two basis elements.
     #[inline]
@@ -114,18 +113,17 @@ impl FrameMetric {
         for k in 0..self.dimensions {
             s ^= (lhs >> k) & rhs;
         }
-        s.count_ones() & 1 != 0
+        parity(s)
     }
     /// Functional simple version of aap_parity
     #[inline]
     #[must_use]
     pub fn fun_aap_parity(&self, lhs: u32, rhs: u32) -> bool {
-        (0..self.dimensions)
-            .map(|k| (lhs >> k) & rhs)
-            .fold(self.hypermum & lhs & rhs, BitXor::bitxor)
-            .count_ones()
-            & 1
-            != 0
+        parity(
+            (0..self.dimensions)
+                .map(|k| (lhs >> k) & rhs)
+                .fold(self.hypermum & lhs & rhs, BitXor::bitxor),
+        )
     }
 }
 
