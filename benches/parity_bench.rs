@@ -28,11 +28,11 @@ fn bench_parity(metric: &FrameMetric, c: &mut Criterion) {
 
     let mut group = c.benchmark_group(format!("parity/{}+{}", metric.positive, metric.negative));
 
-    group.bench_function(BenchmarkId::new("swap_parity", "swap"), |b| {
+    group.bench_function(BenchmarkId::new("mul_parity", "orig"), |b| {
         b.iter(|| {
             for &lhs in &lhs_values {
                 for &rhs in &rhs_values {
-                    black_box(metric.swap_parity(lhs, rhs));
+                    black_box(metric.mul_parity(lhs, rhs));
                 }
             }
         });

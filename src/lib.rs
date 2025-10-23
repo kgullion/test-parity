@@ -80,8 +80,8 @@ impl FrameMetric {
     #[inline]
     #[must_use]
     pub fn aap_parity(&self, lhs: u32, rhs: u32) -> bool {
-        let mut s = 0;
-        for k in 1..self.dimensions {
+        let mut s = self.hypermum & lhs & rhs;
+        for k in 0..self.dimensions {
             s ^= (lhs >> k) & rhs;
         }
         s.count_ones() & 1 != 0
@@ -90,9 +90,9 @@ impl FrameMetric {
     #[inline]
     #[must_use]
     pub fn fun_aap_parity(&self, lhs: u32, rhs: u32) -> bool {
-        (1..self.dimensions)
+        (0..self.dimensions)
             .map(|k| (lhs >> k) & rhs)
-            .fold(0, BitXor::bitxor)
+            .fold(self.hypermum & lhs & rhs, BitXor::bitxor)
             .count_ones()
             & 1
             != 0
@@ -128,7 +128,7 @@ mod tests {
             let lhs = lhs & mask;
             let rhs = rhs & mask;
 
-            let sp = metric.swap_parity(lhs, rhs);
+            let sp = metric.mul_parity(lhs, rhs);
             let ap = metric.aap_parity(lhs, rhs);
             let fp = metric.fun_aap_parity(lhs, rhs);
 
