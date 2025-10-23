@@ -5,19 +5,19 @@ use abstalg::Domain;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FrameMetric {
     /// number of basis elements with positive square
-   pub positive: u32,
+    pub positive: u32,
     /// number of basis elements with negative square
-  pub  negative: u32,
+    pub negative: u32,
     /// total number of basis elements
-  pub  dimensions: u32,
+    pub dimensions: u32,
     /// bitmask representing all basis elements
-  pub  supremum: u32,
+    pub supremum: u32,
     /// bitmask representing the basis elements with positive square
-  pub  hypermum: u32,
+    pub hypermum: u32,
     /// bitmask representing the basis elements with negative square
-   pub imagimum: u32,
+    pub imagimum: u32,
     /// bitmask representing the empty basis element, corresponds to the scalar 1
-  pub  infinum: u32,
+    pub infinum: u32,
 }
 
 impl Domain for FrameMetric {
