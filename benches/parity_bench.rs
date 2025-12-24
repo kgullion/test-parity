@@ -28,11 +28,61 @@ fn bench_parity(metric: &FrameMetric, c: &mut Criterion) {
 
     let mut group = c.benchmark_group(format!("parity/{}+{}", metric.positive, metric.negative));
 
+    group.bench_function(BenchmarkId::new("swap_parity", "x"), |b| {
+        b.iter(|| {
+            for &lhs in &lhs_values {
+                for &rhs in &rhs_values {
+                    black_box(metric.swap_parity(lhs, rhs));
+                }
+            }
+        });
+    });
+
+    group.bench_function(BenchmarkId::new("swap_parity_fast", "x"), |b| {
+        b.iter(|| {
+            for &lhs in &lhs_values {
+                for &rhs in &rhs_values {
+                    black_box(metric.swap_parity_fast(lhs, rhs));
+                }
+            }
+        });
+    });
+
+    group.bench_function(BenchmarkId::new("metric_parity", "x"), |b| {
+        b.iter(|| {
+            for &lhs in &lhs_values {
+                for &rhs in &rhs_values {
+                    black_box(metric.metric_parity(lhs & rhs));
+                }
+            }
+        });
+    });
+
+    group.bench_function(BenchmarkId::new("metric_parity_fast", "x"), |b| {
+        b.iter(|| {
+            for &lhs in &lhs_values {
+                for &rhs in &rhs_values {
+                    black_box(metric.metric_parity_fast(lhs & rhs));
+                }
+            }
+        });
+    });
+
     group.bench_function(BenchmarkId::new("mul_parity", "x"), |b| {
         b.iter(|| {
             for &lhs in &lhs_values {
                 for &rhs in &rhs_values {
                     black_box(metric.mul_parity(lhs, rhs));
+                }
+            }
+        });
+    });
+
+    group.bench_function(BenchmarkId::new("mul_parity_fast", "x"), |b| {
+        b.iter(|| {
+            for &lhs in &lhs_values {
+                for &rhs in &rhs_values {
+                    black_box(metric.mul_parity_fast(lhs, rhs));
                 }
             }
         });
@@ -48,11 +98,31 @@ fn bench_parity(metric: &FrameMetric, c: &mut Criterion) {
         });
     });
 
+    group.bench_function(BenchmarkId::new("aap_parity_fast", "x"), |b| {
+        b.iter(|| {
+            for &lhs in &lhs_values {
+                for &rhs in &rhs_values {
+                    black_box(metric.aap_parity_fast(lhs, rhs));
+                }
+            }
+        });
+    });
+
     group.bench_function(BenchmarkId::new("fun_aap_parity", "x"), |b| {
         b.iter(|| {
             for &lhs in &lhs_values {
                 for &rhs in &rhs_values {
                     black_box(metric.fun_aap_parity(lhs, rhs));
+                }
+            }
+        });
+    });
+
+    group.bench_function(BenchmarkId::new("fun_aap_parity_fast", "x"), |b| {
+        b.iter(|| {
+            for &lhs in &lhs_values {
+                for &rhs in &rhs_values {
+                    black_box(metric.fun_aap_parity_fast(lhs, rhs));
                 }
             }
         });
@@ -68,11 +138,33 @@ fn bench_parity(metric: &FrameMetric, c: &mut Criterion) {
         });
     });
 
+    group.bench_function(BenchmarkId::new("gerenuk_w_metric_fast", "x"), |b| {
+        b.iter(|| {
+            for &lhs in &lhs_values {
+                for &rhs in &rhs_values {
+                    black_box(
+                        metric.gerenuk_parity_fast(lhs, rhs) ^ metric.metric_parity_fast(lhs & rhs),
+                    );
+                }
+            }
+        });
+    });
+
     group.bench_function(BenchmarkId::new("gerenuk_wo_metric", "x"), |b| {
         b.iter(|| {
             for &lhs in &lhs_values {
                 for &rhs in &rhs_values {
                     black_box(metric.gerenuk_parity(lhs, rhs));
+                }
+            }
+        });
+    });
+
+    group.bench_function(BenchmarkId::new("gerenuk_wo_metric_fast", "x"), |b| {
+        b.iter(|| {
+            for &lhs in &lhs_values {
+                for &rhs in &rhs_values {
+                    black_box(metric.gerenuk_parity_fast(lhs, rhs));
                 }
             }
         });
