@@ -1,190 +1,109 @@
-use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use rand::{Rng, SeedableRng, rngs::StdRng};
-use test_parity::FrameMetric;
+use test_parity::full_parity as fp;
+use test_parity::swap_parity as sp;
 
-fn bench_parity(metric: &FrameMetric, c: &mut Criterion) {
-    let mask = metric.supremum;
-    // If the space is small, iterate exhaustively. Otherwise sample randomly.
-    let max_exhaust = 1u64 << 16; // up to 65536 total pairs exhaustively
-    let space_size = (mask as u64 + 1) * (mask as u64 + 1);
+const SAMPLE_N: usize = 1000;
+const RNG_SEED: u64 = 0x_5EED_C0DE;
 
-    let (lhs_values, rhs_values) = if false && space_size <= max_exhaust {
-        (
-            (0..=mask).collect::<Vec<u32>>(),
-            (0..=mask).collect::<Vec<u32>>(),
-        )
-    } else {
-        // sample N random pairs (lhs, rhs) using a seeded RNG for reproducibility
-        let sample_n = 100;
-        let mut rng = StdRng::seed_from_u64(0x_5EED_C0DE);
-        let mut lhs = Vec::with_capacity(sample_n);
-        let mut rhs = Vec::with_capacity(sample_n);
-        for _ in 0..sample_n {
-            lhs.push(rng.gen_range(0..=mask));
-            rhs.push(rng.gen_range(0..=mask));
-        }
-        (lhs, rhs)
+macro_rules! add_full_bench {
+    ($group:ident, $func:expr, $input:expr) => {
+        $group.bench_function(stringify!($func), |bencher| {
+            bencher.iter_with_large_drop(|| {
+                $input
+                    .0
+                    .iter()
+                    .flat_map(|lhs| {
+                        $input
+                            .1
+                            .iter()
+                            .map(|rhs| $func(*lhs, *rhs, $input.2, $input.3, $input.4))
+                    })
+                    .collect::<Vec<_>>()
+            })
+        });
     };
+}
+fn bench_full_parity(c: &mut Criterion, p: u32, q: u32) {
+    let dims = p + q;
+    let (pmask, qmask) = test_parity::clifford_masks(p, q);
+    let metric_mask = pmask | qmask;
 
-    let mut group = c.benchmark_group(format!("parity/{}+{}", metric.positive, metric.negative));
+    let mut rng = StdRng::seed_from_u64(RNG_SEED);
+    let lhs: Vec<_> = (0..SAMPLE_N)
+        .map(|_| rng.gen_range(0..=metric_mask))
+        .collect();
+    let rhs: Vec<_> = (0..SAMPLE_N)
+        .map(|_| rng.gen_range(0..=metric_mask))
+        .collect();
+    let input = black_box((lhs, rhs, pmask, qmask, dims));
 
-    group.bench_function(BenchmarkId::new("swap_parity", "x"), |b| {
-        b.iter(|| {
-            for &lhs in &lhs_values {
-                for &rhs in &rhs_values {
-                    black_box(metric.swap_parity(lhs, rhs));
-                }
-            }
+    let mut group = c.benchmark_group(format!("Cl({},{})", p, q));
+
+    // add_full_bench!(group, fp::naive_full, input);
+    // add_full_bench!(group, fp::aap_full, input);
+    // add_full_bench!(group, fp::fun_aap_full, input);
+    add_full_bench!(group, fp::gerenuk_full, input);
+    add_full_bench!(group, fp::gerenuk_late_a_rsh_full, input);
+    add_full_bench!(group, fp::gerenuk_no_a_rsh_full, input);
+    // add_full_bench!(group, fp::starfighter_full, input);
+    add_full_bench!(group, fp::pixel_full, input);
+    add_full_bench!(group, fp::pppt2_full, input);
+
+    group.finish();
+}
+
+macro_rules! add_swap_bench {
+    ($group:ident, $func:expr, $input:expr) => {
+        $group.bench_function(stringify!($func), |bencher| {
+            bencher.iter_with_large_drop(|| {
+                $input
+                    .0
+                    .iter()
+                    .flat_map(|lhs| {
+                        $input
+                            .1
+                            .iter()
+                            .map(|rhs| $func(*lhs, *rhs))
+                    })
+                    .collect::<Vec<_>>()
+            })
         });
-    });
+    };
+}
+fn bench_swap_parity(c: &mut Criterion) {
+    let max = test_parity::Mask::MAX >> 1; // drop a bit since some algos don't work with full width
+    let mut rng = StdRng::seed_from_u64(RNG_SEED);
+    let lhs: Vec<_> = (0..SAMPLE_N)
+        .map(|_| rng.gen_range(0..=max))
+        .collect();
+    let rhs: Vec<_> = (0..SAMPLE_N)
+        .map(|_| rng.gen_range(0..=max))
+        .collect();
+    let input = black_box((lhs, rhs));
 
-    group.bench_function(BenchmarkId::new("swap_parity_fast", "x"), |b| {
-        b.iter(|| {
-            for &lhs in &lhs_values {
-                for &rhs in &rhs_values {
-                    black_box(metric.swap_parity_fast(lhs, rhs));
-                }
-            }
-        });
-    });
+    let mut group = c.benchmark_group("SwapParity");
 
-    group.bench_function(BenchmarkId::new("metric_parity", "x"), |b| {
-        b.iter(|| {
-            for &lhs in &lhs_values {
-                for &rhs in &rhs_values {
-                    black_box(metric.metric_parity(lhs & rhs));
-                }
-            }
-        });
-    });
-
-    group.bench_function(BenchmarkId::new("metric_parity_fast", "x"), |b| {
-        b.iter(|| {
-            for &lhs in &lhs_values {
-                for &rhs in &rhs_values {
-                    black_box(metric.metric_parity_fast(lhs & rhs));
-                }
-            }
-        });
-    });
-
-    group.bench_function(BenchmarkId::new("mul_parity", "x"), |b| {
-        b.iter(|| {
-            for &lhs in &lhs_values {
-                for &rhs in &rhs_values {
-                    black_box(metric.mul_parity(lhs, rhs));
-                }
-            }
-        });
-    });
-
-    group.bench_function(BenchmarkId::new("mul_parity_fast", "x"), |b| {
-        b.iter(|| {
-            for &lhs in &lhs_values {
-                for &rhs in &rhs_values {
-                    black_box(metric.mul_parity_fast(lhs, rhs));
-                }
-            }
-        });
-    });
-
-    group.bench_function(BenchmarkId::new("aap_parity", "x"), |b| {
-        b.iter(|| {
-            for &lhs in &lhs_values {
-                for &rhs in &rhs_values {
-                    black_box(metric.aap_parity(lhs, rhs));
-                }
-            }
-        });
-    });
-
-    group.bench_function(BenchmarkId::new("aap_parity_fast", "x"), |b| {
-        b.iter(|| {
-            for &lhs in &lhs_values {
-                for &rhs in &rhs_values {
-                    black_box(metric.aap_parity_fast(lhs, rhs));
-                }
-            }
-        });
-    });
-
-    group.bench_function(BenchmarkId::new("fun_aap_parity", "x"), |b| {
-        b.iter(|| {
-            for &lhs in &lhs_values {
-                for &rhs in &rhs_values {
-                    black_box(metric.fun_aap_parity(lhs, rhs));
-                }
-            }
-        });
-    });
-
-    group.bench_function(BenchmarkId::new("fun_aap_parity_fast", "x"), |b| {
-        b.iter(|| {
-            for &lhs in &lhs_values {
-                for &rhs in &rhs_values {
-                    black_box(metric.fun_aap_parity_fast(lhs, rhs));
-                }
-            }
-        });
-    });
-
-    group.bench_function(BenchmarkId::new("gerenuk_w_metric", "x"), |b| {
-        b.iter(|| {
-            for &lhs in &lhs_values {
-                for &rhs in &rhs_values {
-                    black_box(metric.gerenuk_parity(lhs, rhs) ^ metric.metric_parity(lhs & rhs));
-                }
-            }
-        });
-    });
-
-    group.bench_function(BenchmarkId::new("gerenuk_w_metric_fast", "x"), |b| {
-        b.iter(|| {
-            for &lhs in &lhs_values {
-                for &rhs in &rhs_values {
-                    black_box(
-                        metric.gerenuk_parity_fast(lhs, rhs) ^ metric.metric_parity_fast(lhs & rhs),
-                    );
-                }
-            }
-        });
-    });
-
-    group.bench_function(BenchmarkId::new("gerenuk_wo_metric", "x"), |b| {
-        b.iter(|| {
-            for &lhs in &lhs_values {
-                for &rhs in &rhs_values {
-                    black_box(metric.gerenuk_parity(lhs, rhs));
-                }
-            }
-        });
-    });
-
-    group.bench_function(BenchmarkId::new("gerenuk_wo_metric_fast", "x"), |b| {
-        b.iter(|| {
-            for &lhs in &lhs_values {
-                for &rhs in &rhs_values {
-                    black_box(metric.gerenuk_parity_fast(lhs, rhs));
-                }
-            }
-        });
-    });
+    // add_swap_bench!(group, sp::naive_swap, input);
+    // add_swap_bench!(group, sp::aap_swap, input);
+    // add_swap_bench!(group, sp::fun_aap_swap, input);
+    add_swap_bench!(group, sp::gerenuk_swap, input);
+    add_swap_bench!(group, sp::gerenuk_late_a_rsh_swap, input);
+    add_swap_bench!(group, sp::gerenuk_no_a_rsh_swap, input);
+    // add_swap_bench!(group, sp::starfighter_swap, input);
+    add_swap_bench!(group, sp::pixel_swap, input);
+    add_swap_bench!(group, sp::ppp2_swap, input);
 
     group.finish();
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let metrics = [
-        FrameMetric::new(3, 0),
-        FrameMetric::new(4, 1),
-        FrameMetric::new(16, 16),
-        FrameMetric::new(32, 0),
-        FrameMetric::new(0, 32),
-    ];
-
-    for metric in &metrics {
-        bench_parity(metric, c);
-    }
+    bench_swap_parity(c);
+    bench_full_parity(c, 3, 0);
+    bench_full_parity(c, 4, 1);
+    bench_full_parity(c, 16, 16);
+    bench_full_parity(c, 32, 31);
+    bench_full_parity(c, 0, 63);
 }
 
 criterion_group!(benches, criterion_benchmark);
