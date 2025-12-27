@@ -4,23 +4,18 @@ use test_parity::full_parity as fp;
 use test_parity::swap_parity as sp;
 
 const SAMPLE_N: usize = 1000;
-const RNG_SEED: u64 = 0x_5EED_C0DE;
+const RNG_SEED: u64 = 0x_DEAD_BEEF;
 
 macro_rules! add_full_bench {
     ($group:ident, $func:expr, $input:expr) => {
         $group.bench_function(stringify!($func), |bencher| {
-            bencher.iter_with_large_drop(|| {
+            let mut it = $input.0.iter().flat_map(|lhs| {
                 $input
-                    .0
+                    .1
                     .iter()
-                    .flat_map(|lhs| {
-                        $input
-                            .1
-                            .iter()
-                            .map(|rhs| $func(*lhs, *rhs, $input.2, $input.3, $input.4))
-                    })
-                    .collect::<Vec<_>>()
-            })
+                    .map(|rhs| $func(*lhs, *rhs, $input.2, $input.3, $input.4))
+            });
+            bencher.iter(|| it.next())
         });
     };
 }
@@ -46,9 +41,19 @@ fn bench_full_parity(c: &mut Criterion, p: u32, q: u32) {
     add_full_bench!(group, fp::gerenuk_full, input);
     add_full_bench!(group, fp::gerenuk_late_a_rsh_full, input);
     add_full_bench!(group, fp::gerenuk_no_a_rsh_full, input);
+    add_full_bench!(group, fp::gerenuk_full_per, input);
+    add_full_bench!(group, fp::gerenuk_late_a_rsh_full_per, input);
+    add_full_bench!(group, fp::gerenuk_no_a_rsh_full_per, input);
     // add_full_bench!(group, fp::starfighter_full, input);
     add_full_bench!(group, fp::pixel_full, input);
     add_full_bench!(group, fp::pppt2_full, input);
+    group.bench_function("antelope_curried", |bencher| {
+        let mut it = input.1.iter().flat_map(|lhs| {
+            let ac = fp::antelope_curried(input.3, *lhs);
+            input.0.iter().map(move |rhs| ac(*rhs))
+        });
+        bencher.iter(|| it.next())
+    });
 
     group.finish();
 }
@@ -56,30 +61,19 @@ fn bench_full_parity(c: &mut Criterion, p: u32, q: u32) {
 macro_rules! add_swap_bench {
     ($group:ident, $func:expr, $input:expr) => {
         $group.bench_function(stringify!($func), |bencher| {
-            bencher.iter_with_large_drop(|| {
-                $input
-                    .0
-                    .iter()
-                    .flat_map(|lhs| {
-                        $input
-                            .1
-                            .iter()
-                            .map(|rhs| $func(*lhs, *rhs))
-                    })
-                    .collect::<Vec<_>>()
-            })
+            let mut it = $input
+                .0
+                .iter()
+                .flat_map(|lhs| $input.1.iter().map(|rhs| $func(*lhs, *rhs)));
+            bencher.iter(|| it.next())
         });
     };
 }
 fn bench_swap_parity(c: &mut Criterion) {
     let max = test_parity::Mask::MAX >> 1; // drop a bit since some algos don't work with full width
     let mut rng = StdRng::seed_from_u64(RNG_SEED);
-    let lhs: Vec<_> = (0..SAMPLE_N)
-        .map(|_| rng.gen_range(0..=max))
-        .collect();
-    let rhs: Vec<_> = (0..SAMPLE_N)
-        .map(|_| rng.gen_range(0..=max))
-        .collect();
+    let lhs: Vec<_> = (0..SAMPLE_N).map(|_| rng.gen_range(0..=max)).collect();
+    let rhs: Vec<_> = (0..SAMPLE_N).map(|_| rng.gen_range(0..=max)).collect();
     let input = black_box((lhs, rhs));
 
     let mut group = c.benchmark_group("SwapParity");

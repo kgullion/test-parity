@@ -49,9 +49,7 @@ pub fn gerenuk_swap(mut a: Mask, mut b: Mask) -> bool {
     b ^= b << 8;
     b ^= b << 4;
     b ^= b << 2;
-    b ^= b << 1;
-    b &= a;
-    b.count_ones() & 1 != 0
+    ((b ^ (b << 1)) & a).count_ones() & 1 != 0
 }
 /// Unrolled bitwise version of swap_parity with late a shift
 #[inline]
@@ -61,22 +59,17 @@ pub fn gerenuk_late_a_rsh_swap(a: Mask, mut b: Mask) -> bool {
     b ^= b << 8;
     b ^= b << 4;
     b ^= b << 2;
-    b ^= b << 1;
-    b &= a >> 1;
-    b.count_ones() & 1 != 0
+    ((b ^ (b << 1)) & (a >> 1)).count_ones() & 1 != 0
 }
 /// Unrolled bitwise version of swap_parity with no a shift
 #[inline]
 pub fn gerenuk_no_a_rsh_swap(a: Mask, mut b: Mask) -> bool {
-    b <<= 1;
     b ^= b << 32;
     b ^= b << 16;
     b ^= b << 8;
     b ^= b << 4;
     b ^= b << 2;
-    b ^= b << 1;
-    b &= a;
-    b.count_ones() & 1 != 0
+    (((b << 1) ^ (b << 2)) & a).count_ones() & 1 != 0
 }
 
 // ====

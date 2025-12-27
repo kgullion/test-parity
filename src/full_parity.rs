@@ -48,6 +48,45 @@ pub fn gerenuk_full(mut a: Mask, mut b: Mask, _pmask: Mask, qmask: Mask, _dims: 
     b ^= b << 8;
     b ^= b << 4;
     b ^= b << 2;
+    (((b ^ (b << 1)) & a) ^ negs).count_ones() & 1 != 0
+}
+
+#[inline]
+pub fn gerenuk_late_a_rsh_full(
+    a: Mask,
+    mut b: Mask,
+    _pmask: Mask,
+    qmask: Mask,
+    _dims: u32,
+) -> bool {
+    let negs = a & b & qmask;
+    b ^= b << 32;
+    b ^= b << 16;
+    b ^= b << 8;
+    b ^= b << 4;
+    b ^= b << 2;
+    (((b ^ (b << 1)) & (a >> 1)) ^ negs).count_ones() & 1 != 0
+}
+
+#[inline]
+pub fn gerenuk_no_a_rsh_full(a: Mask, mut b: Mask, _pmask: Mask, qmask: Mask, _dims: u32) -> bool {
+    let negs = a & b & qmask;
+    b ^= b << 32;
+    b ^= b << 16;
+    b ^= b << 8;
+    b ^= b << 4;
+    b ^= b << 2;
+    ((((b << 1) ^ (b << 2)) & a) ^ negs).count_ones() & 1 != 0
+}
+#[inline]
+pub fn gerenuk_full_per(mut a: Mask, mut b: Mask, _pmask: Mask, qmask: Mask, _dims: u32) -> bool {
+    let negs = a & b & qmask;
+    a >>= 1;
+    b ^= b << 32;
+    b ^= b << 16;
+    b ^= b << 8;
+    b ^= b << 4;
+    b ^= b << 2;
     b ^= b << 1;
     b &= a;
     b ^= negs;
@@ -55,7 +94,7 @@ pub fn gerenuk_full(mut a: Mask, mut b: Mask, _pmask: Mask, qmask: Mask, _dims: 
 }
 
 #[inline]
-pub fn gerenuk_late_a_rsh_full(
+pub fn gerenuk_late_a_rsh_full_per(
     a: Mask,
     mut b: Mask,
     _pmask: Mask,
@@ -75,18 +114,65 @@ pub fn gerenuk_late_a_rsh_full(
 }
 
 #[inline]
-pub fn gerenuk_no_a_rsh_full(a: Mask, mut b: Mask, _pmask: Mask, qmask: Mask, _dims: u32) -> bool {
+pub fn gerenuk_no_a_rsh_full_per(
+    a: Mask,
+    mut b: Mask,
+    _pmask: Mask,
+    qmask: Mask,
+    _dims: u32,
+) -> bool {
     let negs = a & b & qmask;
-    b <<= 1;
     b ^= b << 32;
     b ^= b << 16;
     b ^= b << 8;
     b ^= b << 4;
     b ^= b << 2;
     b ^= b << 1;
+    b <<= 1;
     b &= a;
     b ^= negs;
     b.count_ones() & 1 != 0
+}
+
+#[inline]
+pub fn gerenuk_curried(
+    mut b: Mask,
+    _pmask: Mask,
+    qmask: Mask,
+    _dims: u32,
+) -> impl Fn(Mask) -> bool {
+    let negs = b & qmask;
+    b ^= b << 32;
+    b ^= b << 16;
+    b ^= b << 8;
+    b ^= b << 4;
+    b ^= b << 2;
+    b ^= b << 1;
+    b <<= 1;
+    b ^= negs;
+    move |a| (a & b).count_ones() & 1 != 0
+}
+
+#[inline]
+pub fn antelope_curried(qmask: Mask, mut a: Mask) -> impl Fn(Mask) -> bool {
+    let negs = a & qmask;
+    a ^= a >> 32;
+    a ^= a >> 16;
+    a ^= a >> 8;
+    a ^= a >> 4;
+    a ^= a >> 2;
+    a ^= a >> 1;
+    a >>= 1;
+    a ^= negs;
+    move |b| {
+        let mut b = b & a;
+        b ^= b >> 32;
+        b ^= b >> 16;
+        b ^= b >> 8;
+        b ^= b >> 4;
+        b &= 0xF;
+        (0x6996 >> b) & 1 != 0
+    }
 }
 
 // ====
@@ -194,6 +280,23 @@ mod tests {
 
             let gnr = gerenuk_no_a_rsh_full(lhs, rhs, pmask, qmask, dims);
             prop_assert_eq!(np, gnr);
+
+            let gp = gerenuk_full_per(lhs, rhs, pmask, qmask, dims);
+            prop_assert_eq!(np, gp);
+
+            let glr = gerenuk_late_a_rsh_full_per(lhs, rhs, pmask, qmask, dims);
+            prop_assert_eq!(np, glr);
+
+            let gnr = gerenuk_no_a_rsh_full_per(lhs, rhs, pmask, qmask, dims);
+            prop_assert_eq!(np, gnr);
+
+            let gc = gerenuk_curried(rhs, pmask, qmask, dims);
+            let gcp = gc(lhs);
+            prop_assert_eq!(np, gcp);
+
+            let ac = antelope_curried(qmask, lhs);
+            let acp = ac(rhs);
+            prop_assert_eq!(np, acp);
 
             // let sf = starfighter_full(lhs, rhs, pmask, qmask, dims);
             // prop_assert_eq!(np, sf);

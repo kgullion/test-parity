@@ -1,4 +1,4 @@
-# test_parity
+# test_parity [(report)](https://kgullion.github.io/test-parity/report/)
 
 Small Rust playground for testing and benchmarking different bit-level algorithms that compute the **sign/parity** arising in the geometric product of blade bitmasks.
 
